@@ -85,6 +85,16 @@ h2{font-family:var(--font-display);font-weight:600;font-size:1rem;margin:0 0 4px
 .loader i::after{content:"";display:block;width:40%;height:100%;background:var(--star);border-radius:3px;animation:slide 1.1s ease-in-out infinite alternate}
 @keyframes slide{from{transform:translateX(-20%)}to{transform:translateX(170%)}}
 @media (prefers-reduced-motion:reduce){.loader i::after{animation:none;width:100%}}
+.worlds{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;-webkit-appearance:none;appearance:none}
+.chip i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.chip[aria-pressed="true"]{border-color:var(--star);color:var(--star)}
+.chip:focus-visible,.colony input:focus-visible{outline:2px solid var(--star);outline-offset:2px}
+.colony{display:flex;flex-direction:column;gap:10px;margin-top:22px;padding:16px;border:1px solid var(--star);border-radius:14px;background:var(--panel)}
+.colony p{margin:0;color:var(--dim)}
+.colony label{font-family:var(--font-num);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.colony input{min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--void);color:var(--ink);font:inherit;font-size:16px;width:100%;min-width:0}
+.pals{display:flex;flex-wrap:wrap;gap:8px}
 @media (min-width:860px){
   .main{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start;margin-top:20px}
   .stage{position:sticky;top:90px}
@@ -97,7 +107,7 @@ h2{font-family:var(--font-display);font-weight:600;font-size:1rem;margin:0 0 4px
 <div class="loader" id="loader" role="status">
   <img src="splash.jpg" alt="" width="640" height="640">
   <strong>Spinworld</strong>
-  <span>Building your world</span>
+  <span id="loadMsg">Building your world</span>
   <i></i>
 </div>
 
@@ -131,8 +141,17 @@ h2{font-family:var(--font-display);font-weight:600;font-size:1rem;margin:0 0 4px
     </section>
 
     <section>
+      <div class="worlds" id="worlds" hidden></div>
       <h2>Shape your world</h2>
       <ul class="ups" id="ups"></ul>
+      <form class="colony" id="colony" hidden>
+        <h2>A new world</h2>
+        <p>Your people are launching rockets into the dark. Create the world they will land on.</p>
+        <label for="cname">Name it</label>
+        <input id="cname" type="text" maxlength="18" autocomplete="off" placeholder="New Haven">
+        <div class="pals" id="pals" role="group" aria-label="What grows there"></div>
+        <button class="buy" id="found" type="submit">Launch colony</button>
+      </form>
       <button class="reset" id="reset" type="button">Start over with a new world</button>
     </section>
   </div>
@@ -159,18 +178,32 @@ const UPS=[
   log:["Something green at the water's edge.","Moss spreads inland. Something large surfaces offshore.","The first forests, and herds on the plains.","Jungles thicken.","Green wherever rain falls."]},
  {k:"civ",name:"Civilization",c:"--city",max:5,base:5000,g:2.6,ds:()=>"+90 ✦ per turn",
   req:s=>s.lv.life<3?"Needs Life level 3":null,
-  log:["Campfires on the night side. Fields by the huts.","Towns along the coasts, sails offshore.","Cities. The first satellites go up.","The night side glitters. Towers get beacons.","A world awake around the clock."]},
+  log:["Campfires on the night side. Fields by the huts.","Towns along the coasts, sails offshore.","Cities. The first satellites go up.","The night side glitters. Towers get beacons.","A world awake around the clock. Rockets lift off for the stars."]},
  {k:"moon",name:"Moon",c:"--moon",max:2,base:900,g:6,ds:()=>"×1.3 starlight",
   log:["A captured moon settles into orbit.","A second, rust-coloured moon joins it."]},
  {k:"ring",name:"Rings",c:"--ring",max:2,base:20000,g:5,ds:()=>"×1.6 starlight",
   req:s=>s.lv.moon<1?"Needs a moon to shepherd them":null,
   log:["A band of ice and dust.","The rings widen and brighten."]},
  {k:"mult",name:"Multiplier",c:"--star",max:Infinity,base:60000,g:2.6,ds:()=>"Doubles all starlight",
-  req:s=>UPS.some(u=>u.k!=="mult"&&s.lv[u.k]<u.max)?"Finish every other upgrade first":null,
+  req:()=>state.worlds.some(w=>UPS.every(u=>u.k==="mult"||w.lv[u.k]>=u.max))?null:"Finish every other upgrade on one world first",
   log:["The whole world shines twice as bright."]}
 ];
 const cost=(u,l)=>Math.round(u.base*Math.pow(u.g,l));
-const yieldOf=s=>Math.round(3*(1+2*s.lv.atm+6*s.lv.sea+20*s.lv.life+90*s.lv.civ)*Math.pow(1.3,s.lv.moon)*Math.pow(1.6,s.lv.ring)*Math.pow(2,s.lv.mult));
+const worldYield=w=>3*(1+2*w.lv.atm+6*w.lv.sea+20*w.lv.life+90*w.lv.civ)*Math.pow(1.3,w.lv.moon)*Math.pow(1.6,w.lv.ring);
+const yieldOf=s=>Math.round(s.worlds.reduce((a,w)=>a+worldYield(w),0)*Math.pow(2,s.mult));
+const lvl=u=>u.k==="mult"?state.mult:W.lv[u.k];
+const costOf=(u,l)=>cost(u,l)*(u.k==="mult"?1:Math.pow(4,state.cur)); /* later worlds cost more to shape */
+const colonyCost=()=>100000*Math.pow(5,state.worlds.length-1);
+const MAXW=4,NAMES=["New Haven","Farpoint","Third Light"];
+/* what grows on a world, and the colour of its seas */
+const PALS=[
+ {n:"Garden",dot:"#6fc46a",s0:[50,136,184],s1:[8,38,98],sh:[112,202,204],v0:[78,140,56],v1:[24,84,42],tree:[[30,96,58],[40,110,62],[26,84,64]],leaf:[[46,120,48],[66,134,44],[38,104,56],[110,138,48]]},
+ {n:"Crimson",dot:"#d8566a",s0:[60,150,150],s1:[10,52,70],sh:[130,214,190],v0:[190,84,70],v1:[110,26,48],tree:[[120,30,50],[146,44,56],[100,26,64]],leaf:[[170,50,60],[196,80,60],[140,40,76],[210,120,70]]},
+ {n:"Violet",dot:"#a07be0",s0:[70,160,130],s1:[10,60,60],sh:[150,224,170],v0:[150,110,200],v1:[70,36,120],tree:[[80,44,130],[100,56,150],[66,40,112]],leaf:[[120,70,170],[146,90,190],[96,56,150],[180,120,200]]},
+ {n:"Amber",dot:"#e0b040",s0:[40,100,190],s1:[6,24,96],sh:[90,170,220],v0:[214,180,70],v1:[150,104,24],tree:[[150,110,30],[176,130,40],[130,96,36]],leaf:[[196,150,40],[214,170,50],[170,120,36],[220,190,90]]}
+];
+let P=PALS[0];
+const newWorld=(name,pal)=>({name,pal,seed:(Math.random()*1e9)|0,rot:0,lv:{atm:0,sea:0,life:0,civ:0,moon:0,ring:0}});
 const stageOf=s=>s.lv.civ?"Lit world":s.lv.life?"Living world":s.lv.sea?"Water world":s.lv.atm?"Hazy rock":"Bare rock";
 function fmt(n){
   if(n<1000)return String(Math.floor(n));
@@ -178,8 +211,8 @@ function fmt(n){
   if(n<1e9)return (n/1e6).toFixed(2)+"M";
   return (n/1e9).toFixed(2)+"B";
 }
-function fresh(){return {star:0,days:0,rot:0,seed:(Math.random()*1e9)|0,log:"A bare, cratered rock, turning slowly.",lv:{atm:0,sea:0,life:0,civ:0,moon:0,ring:0,mult:0}}}
-let state=fresh(), boost=0, acc=0;
+function fresh(){return {star:0,days:0,cur:0,mult:0,log:"A bare, cratered rock, turning slowly.",worlds:[newWorld("Homeworld",0)]}}
+let state=fresh(), W=state.worlds[0], boost=0, acc=0;
 let z=1, zT=1, camLat=0, latEff=0, sunAng=0;
 
 /* ---------- noise + world generation ---------- */
@@ -276,8 +309,8 @@ function colorAt(h,m,p,latN){
   if(LSEA>0 && latN+(m-.5)*.18>.87-.01*LSEA){const f=1+frl*.4;cr=228*f;cg=236*f;cb=246*f;return 0}
   if(h<SEAL){
     const dp=SEAL-h,d=Math.min(1,dp/SEAL*1.7),f=1+frl*.1;
-    cr=lerp(50,8,d)*f;cg=lerp(136,38,d)*f;cb=lerp(184,98,d)*f;
-    if(dp<.03){const k=(1-dp/.03)*.5;cr=lerp(cr,112,k);cg=lerp(cg,202,k);cb=lerp(cb,204,k)}
+    cr=lerp(P.s0[0],P.s1[0],d)*f;cg=lerp(P.s0[1],P.s1[1],d)*f;cb=lerp(P.s0[2],P.s1[2],d)*f;
+    if(dp<.03){const k=(1-dp/.03)*.5;cr=lerp(cr,P.sh[0],k);cg=lerp(cg,P.sh[1],k);cb=lerp(cb,P.sh[2],k)}
     return 1;
   }
   const t=(h-SEAL)/(1-SEAL);ct=t;
@@ -286,7 +319,7 @@ function colorAt(h,m,p,latN){
   if(LSEA>0&&t<.012){cr=204;cg=188;cb=142}
   else if(LIFE>0){
     const gr=clamp((m-(.95-LIFE*.17))/.15,0,1)*(1-clamp((t-.55)/.25,0,1));cgr=gr;
-    cr=lerp(cr,lerp(78,24,m),gr);cg=lerp(cg,lerp(140,84,m),gr);cb=lerp(cb,lerp(56,42,m),gr);
+    cr=lerp(cr,lerp(P.v0[0],P.v1[0],m),gr);cg=lerp(cg,lerp(P.v0[1],P.v1[1],m),gr);cb=lerp(cb,lerp(P.v0[2],P.v1[2],m),gr);
   }
   if(LSEA>0){const sn=clamp((t-(.62-latN*.3))/.05,0,1);if(sn>0){csnow=sn;cr=lerp(cr,238,sn);cg=lerp(cg,242,sn);cb=lerp(cb,250,sn)}}
   if(CIV>0){
@@ -297,8 +330,8 @@ function colorAt(h,m,p,latN){
   return 2;
 }
 function buildTex(){
-  const L=state.lv,seed=state.seed;
-  SEAL=SEA[L.sea];LSEA=L.sea;LIFE=L.life;CIV=L.civ;
+  const L=W.lv,seed=W.seed;
+  SEAL=SEA[L.sea];LSEA=L.sea;LIFE=L.life;CIV=L.civ;P=PALS[W.pal]||PALS[0];
   for(let v=0;v<TH;v++){
     const latN=Math.abs(v/TH-.5)*2;
     for(let u=0;u<TW;u++){
@@ -410,8 +443,8 @@ const CLOUD=[0,0,.5,.7,.85,1];
 let rtCur=0,rcCur=0,csCur=0;
 function drawSphere(t){
   if(Math.abs(z-projZ)>1e-4||Math.abs(latEff-projA)>1e-4)rebuildProj(z,latEff);
-  const d=img.data,rt=((state.rot/TAU*TW)%TW+TW)%TW,rc=(rt*1.2+t*2)%TW;
-  const cs=CLOUD[state.lv.atm]/255*(1-.45*clamp((z-2)/3,0,1)),ak=state.lv.atm/5*.9;
+  const d=img.data,rt=((W.rot/TAU*TW)%TW+TW)%TW,rc=(rt*1.2+t*2)%TW;
+  const cs=CLOUD[W.lv.atm]/255*(1-.45*clamp((z-2)/3,0,1)),ak=W.lv.atm/5*.9;
   rtCur=rt;rcCur=rc;csCur=cs;
   if(z<=1.004){
     for(let i=0;i<pn;i++){
@@ -469,13 +502,77 @@ const rgb=(r,g,b,s)=>"rgb("+((r*s)|0)+","+((g*s)|0)+","+((b*s)|0)+")";
 function tri(x1,y1,x2,y2,x3,y3){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);ctx.fill()}
 function disc(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill()}
 const VM=3000,vI=new Int32Array(VM),vX=new Float32Array(VM),vY=new Float32Array(VM),vL=new Float32Array(VM),vA=new Float32Array(VM),vK=new Float32Array(VM),ord=[];
-const TREEC=[[30,96,58],[40,110,62],[26,84,64]],LEAFC=[[46,120,48],[66,134,44],[38,104,56],[110,138,48]],
-      BLDC=[[190,186,178],[206,190,166],[150,170,190],[176,160,150]],FARMC=[[214,186,90],[122,164,70],[150,110,72],[176,196,92]];
+const BLDC=[[190,186,178],[206,190,166],[150,170,190],[176,160,150]],FARMC=[[214,186,90],[122,164,70],[150,110,72],[176,196,92]];
+const bX=new Float32Array(40),bY=new Float32Array(40),zr=[];let nb=0,nextZ=0;
+const SLOTS=[[575,112],[118,140],[590,585],[125,580]];
+let minis=[],rk=[],nextOut=0,nextIn=0;
+function others(){const o=[];state.worlds.forEach((w,i)=>{if(i!==state.cur)o.push(i)});return o}
+function canFound(){return W.lv.civ>=5&&state.worlds.length<MAXW}
+function makeMini(w){
+  const n=72,c=document.createElement("canvas");c.width=c.height=n;const g=c.getContext("2d"),im=g.createImageData(n,n),d=im.data,Q=PALS[w.pal]||PALS[0],sea=SEA[w.lv.sea];
+  for(let py=0;py<n;py++)for(let px=0;px<n;px++){
+    const x=(px+.5-n/2)/(n/2-1),y=(py+.5-n/2)/(n/2-1),r2=x*x+y*y;if(r2>1)continue;
+    const zz=Math.sqrt(1-r2),h=clamp((fbm(x*1.7+9,y*1.7+9,zz*1.7+9,4,w.seed)-.28)/.44,0,1),m=clamp((fbm(x*2.3+31,y*2.3+31,zz*2.3+31,2,w.seed+777)-.3)/.4,0,1);
+    let r,gg,b;
+    if(h<sea){const k=Math.min(1,(sea-h)/sea*1.7);r=lerp(Q.s0[0],Q.s1[0],k);gg=lerp(Q.s0[1],Q.s1[1],k);b=lerp(Q.s0[2],Q.s1[2],k)}
+    else{
+      const t=(h-sea)/(1-sea);r=lerp(lerp(112,82,m),176,t);gg=lerp(lerp(76,78,m),160,t);b=lerp(lerp(58,78,m),148,t);
+      if(w.lv.life>0){const gr=clamp((m-(.95-w.lv.life*.17))/.15,0,1);r=lerp(r,lerp(Q.v0[0],Q.v1[0],m),gr);gg=lerp(gg,lerp(Q.v0[1],Q.v1[1],m),gr);b=lerp(b,lerp(Q.v0[2],Q.v1[2],m),gr)}
+    }
+    const l=clamp((x*L0[0]+y*L0[1]+zz*L0[2])*1.4+.1,0,1),sh=.06+.94*l,o=(py*n+px)*4,at=w.lv.atm/5*Math.pow(1-zz,2)*(.3+l);
+    d[o]=r*sh+70*at;d[o+1]=gg*sh+130*at;d[o+2]=b*sh+255*at;d[o+3]=clamp((1-Math.sqrt(r2))*(n/2)+.5,0,1)*255;
+  }
+  g.putImageData(im,0,0);return c;
+}
+function makeMinis(){minis=state.worlds.map((w,i)=>i===state.cur?null:makeMini(w))}
+function drawSky(fo){ /* the other worlds, far off */
+  if(fo<=0)return;
+  const o=others();ctx.textAlign="center";
+  o.forEach((wi,k)=>{
+    const sl=SLOTS[k],m=minis[wi];if(!m||!sl)return;
+    ctx.globalAlpha=fo;ctx.drawImage(m,sl[0]-30,sl[1]-30,60,60);
+    ctx.globalAlpha=fo*.85;ctx.fillStyle="#9296b0";ctx.font="19px 'DM Mono',ui-monospace,monospace";ctx.fillText(state.worlds[wi].name,sl[0],sl[1]+54);
+  });
+  if(canFound()){
+    const sl=SLOTS[o.length];ctx.globalAlpha=fo*.85;ctx.strokeStyle="#ffcf6b";ctx.lineWidth=2;ctx.setLineDash([5,6]);
+    ctx.beginPath();ctx.arc(sl[0],sl[1],26,0,TAU);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="#ffcf6b";ctx.font="26px 'DM Mono',ui-monospace,monospace";ctx.fillText("?",sl[0],sl[1]+9);
+  }
+  ctx.globalAlpha=1;ctx.textAlign="start";
+}
+function mkRocket(sx,sy,tx,ty,t0,inc){const dx=tx-sx,dy=ty-sy,k=(Math.random()-.5)*.5;return {sx,sy,tx,ty,cx:(sx+tx)/2-dy*k,cy:(sy+ty)/2+dx*k,t0,d:4.5+Math.random()*1.5,inc}}
+function drawRockets(t,fo){ /* ships crossing between worlds */
+  if(fo<=0){rk.length=0;return}
+  const o=others();
+  if(W.lv.civ>=5&&t>nextOut){
+    nextOut=t+1.6+Math.random()*1.6;const k=canFound()?o.length:o.length-1,sl=SLOTS[k];
+    if(sl){const a=Math.atan2(sl[1]-360,sl[0]-360)+(Math.random()-.5)*1.6;rk.push(mkRocket(360+Math.cos(a)*R*z*.8,360+Math.sin(a)*R*z*.8,sl[0],sl[1],t,false))}
+  }
+  if(state.cur>0&&state.worlds[0].lv.civ>=5&&t>nextIn){
+    nextIn=t+3+Math.random()*2;const sl=SLOTS[o.indexOf(0)];
+    if(sl){const a=Math.atan2(sl[1]-360,sl[0]-360)+(Math.random()-.5)*1.4;rk.push(mkRocket(sl[0],sl[1],360+Math.cos(a)*R*z*.85,360+Math.sin(a)*R*z*.85,t,true))}
+  }
+  for(let i=rk.length-1;i>=0;i--){
+    const r=rk[i],p=(t-r.t0)/r.d;if(p>=1){rk.splice(i,1);continue}
+    const e=r.inc?1-(1-p)*(1-p):p*p,sc=(r.inc?lerp(.45,1,e):lerp(1,.45,e))*1.9,al=fo*Math.min(1,p*8,(1-p)*6);
+    const bx=q=>(1-q)*(1-q)*r.sx+2*q*(1-q)*r.cx+q*q*r.tx,by=q=>(1-q)*(1-q)*r.sy+2*q*(1-q)*r.cy+q*q*r.ty;
+    const x=bx(e),y=by(e),e0=Math.max(0,e-.01);
+    ctx.fillStyle="#ffb040";
+    for(let j=1;j<=10;j++){const q=e-j*.012;if(q<0)break;ctx.globalAlpha=al*(1-j/10)*.6;disc(bx(q),by(q),sc*(2.2-j*.15))}
+    ctx.globalAlpha=al;ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(y-by(e0),x-bx(e0)));ctx.scale(sc,sc);
+    ctx.fillStyle="#ffb040";tri(-6,-1.6,-11-Math.random()*3,0,-6,1.6);
+    ctx.fillStyle="#f4f1e8";ctx.fillRect(-6,-2,10,4);
+    ctx.fillStyle="#e0503c";tri(4,-2,8.5,0,4,2);tri(-6,-2,-9,-4.5,-3,-2);tri(-6,2,-9,4.5,-3,2);
+    ctx.restore();
+  }
+  ctx.globalAlpha=1;
+}
 function drawSprites(t){
-  if(z<=2)return;
-  const fade=clamp((z-2)/.8,0,1),cnt=Math.min(NP,(NP*.6*(z/ZMAX)*(z/ZMAX))|0),s=z/ZMAX*1.7,Rz=R*z;
-  const cosV=Math.cos(state.rot),sinV=Math.sin(state.rot),ca=Math.cos(latEff),sa=Math.sin(latEff);
-  const L=state.lv,civ=L.civ,cshift=rtCur-rcCur+TW*2,sd=Lx<0?1:-1;
+  nb=0;
+  if(z<=2){zr.length=0;return}
+  const fade=clamp((z-2)/.8,0,1),cnt=Math.min(NP,(NP*.6*(z/ZMAX)*(z/ZMAX))|0),Rz=R*z;let s=z/ZMAX*1.7;
+  const cosV=Math.cos(W.rot),sinV=Math.sin(W.rot),ca=Math.cos(latEff),sa=Math.sin(latEff);
+  const L=W.lv,civ=L.civ,cshift=rtCur-rcCur+TW*2,sd=Lx<0?1:-1;
   let n=0;
   for(let i=0;i<cnt&&n<VM;i++){
     const ty=ptT[i];if(!ty)continue;
@@ -498,19 +595,20 @@ function drawSprites(t){
       if(rx>0){ctx.globalAlpha=al*.28;ctx.fillStyle="#000";ctx.beginPath();ctx.ellipse(X+sd*rx*.8,Y+rx*.1,rx,rx*.32,0,0,TAU);ctx.fill();ctx.globalAlpha=al}
     }
     if(ty===1){ /* conifer */
-      const h=17*s*(.7+.6*rn),w=h*.32,c=TREEC[i%3];
+      const h=17*s*(.7+.6*rn),w=h*.32,c=P.tree[i%3];
       ctx.fillStyle=rgb(86,58,40,sh);ctx.fillRect(X-h*.04,Y-h*.14,h*.08,h*.14);
       ctx.fillStyle=rgb(c[0]*.8,c[1]*.8,c[2]*.8,sh);tri(X,Y-h*.62,X+w,Y-h*.1,X-w,Y-h*.1);
       ctx.fillStyle=rgb(c[0],c[1],c[2],sh);tri(X,Y-h*.84,X+w*.78,Y-h*.38,X-w*.78,Y-h*.38);
       ctx.fillStyle=rgb(c[0]*1.25,c[1]*1.2,c[2]*1.2,sh);tri(X,Y-h,X+w*.52,Y-h*.62,X-w*.52,Y-h*.62);
     }else if(ty===2){ /* broadleaf */
-      const r=5.2*s*(.7+.6*rn),c=LEAFC[i%4];
+      const r=5.2*s*(.7+.6*rn),c=P.leaf[i%4];
       ctx.fillStyle=rgb(92,62,42,sh);ctx.fillRect(X-r*.14,Y-r*.9,r*.28,r*.9);
       ctx.fillStyle=rgb(c[0]*.78,c[1]*.78,c[2]*.78,sh);disc(X+r*.45,Y-r*1.25,r*.75);disc(X-r*.5,Y-r*1.2,r*.7);
       ctx.fillStyle=rgb(c[0],c[1],c[2],sh);disc(X,Y-r*1.6,r*.9);
       ctx.fillStyle=rgb(c[0]*1.5+10,c[1]*1.3,c[2]*1.3,sh);disc(X-sd*r*.3,Y-r*1.9,r*.4);
     }else if(ty===3){ /* building */
       const w=(6+5*rn)*s,h=(9+((rn*977)%1)*30*civ/5)*s,c=BLDC[i%4];
+      if(nb<40){bX[nb]=X+w;bY[nb]=Y;nb++}
       ctx.fillStyle=night?"rgb(44,46,64)":rgb(c[0],c[1],c[2],sh);ctx.fillRect(X-w/2,Y-h,w,h);
       if(!night){ctx.fillStyle=rgb(c[0]*.66,c[1]*.66,c[2]*.68,sh);if(sd>0)ctx.fillRect(X+w*.22,Y-h,w*.28,h);else ctx.fillRect(X-w/2,Y-h,w*.28,h)}
       ctx.fillStyle=night?"rgb(30,32,46)":rgb(c[0]*.5,c[1]*.5,c[2]*.52,sh);ctx.fillRect(X-w/2-.5*s,Y-h-1.2*s,w+s,1.6*s);
@@ -587,10 +685,24 @@ function drawSprites(t){
       }
     }
   }
+  if(civ>=5){ /* rockets lifting off from the cities */
+    if(nb>0&&t>nextZ){nextZ=t+1+Math.random()*1.8;const k=(Math.random()*nb)|0;zr.push({x:bX[k]+3*s,y:bY[k],t0:t})}
+    for(let i=zr.length-1;i>=0;i--){
+      const r=zr[i],a=t-r.t0;if(a>3.4){zr.splice(i,1);continue}
+      const s0=s;s*=1.5;const rise=(14*a+34*a*a)*s,al=Math.min(1,(3.4-a)/.8),x=r.x,y=r.y-rise;
+      ctx.fillStyle="#e8e6e0";
+      for(let j=0;j<8;j++){const aj=a-j*.12;if(aj<0)break;ctx.globalAlpha=al*.45*(1-j/8);disc(x+Math.sin(j*2.1+r.t0)*.6*s*j,r.y-(14*aj+34*aj*aj)*s+4*s,(1.5+j*.7)*s)}
+      ctx.globalAlpha=al;
+      ctx.fillStyle="#ffb040";tri(x-1.4*s,y,x,y+(5+2*Math.sin(t*40))*s,x+1.4*s,y);
+      ctx.fillStyle="#f4f1e8";ctx.fillRect(x-1.6*s,y-9*s,3.2*s,9*s);
+      ctx.fillStyle="#e0503c";tri(x-1.6*s,y-9*s,x,y-13*s,x+1.6*s,y-9*s);tri(x-1.6*s,y-3*s,x-3.6*s,y,x-1.6*s,y);tri(x+1.6*s,y-3*s,x+3.6*s,y,x+1.6*s,y);
+      s=s0;
+    }
+  }else zr.length=0;
   ctx.globalAlpha=1;
 }
 function draw(t){
-  const L=state.lv,fo=clamp(1-(z-1.1)/.6,0,1);
+  const L=W.lv,fo=clamp(1-(z-1.1)/.6,0,1);
   Lx=Math.sin(LPH-sunAng)*LH;Lz=Math.cos(LPH-sunAng)*LH;
   {const hx=Lx,hy=Ly-Math.sin(latEff),hz=Lz+Math.cos(latEff),hl=Math.hypot(hx,hy,hz)||1;Hx=hx/hl;Hy=hy/hl;Hz=hz/hl}
   ctx.clearRect(0,0,720,720);
@@ -601,6 +713,7 @@ function draw(t){
       if(s.big){ctx.globalAlpha=a*.35;ctx.fillRect(s.x-3,s.y+s.r*.25,6+s.r,s.r*.5);ctx.fillRect(s.x+s.r*.25,s.y-3,s.r*.5,6+s.r)}
     }
     ctx.globalAlpha=1;
+    drawSky(fo);
   }
   ctx.save();ctx.translate(360,360);ctx.rotate(TILT);
   const moons=[[t*.5,R*1.66,30,moonImg[0]],[t*.83+2,R*1.32,17,moonImg[1]]].slice(0,L.moon);
@@ -628,6 +741,7 @@ function draw(t){
   }
   ctx.restore();
   drawSprites(t);
+  drawRockets(t,fo);
 }
 
 /* ---------- UI ---------- */
@@ -638,45 +752,85 @@ function buildRows(){
     const li=document.createElement("li");li.className="up";li.style.setProperty("--c","var("+u.c+")");
     li.innerHTML='<span class="sw"></span><div class="meta"><div class="nm"><span></span><span class="pips"></span></div><div class="ds"></div></div><button class="buy" type="button" id="buy-'+u.k+'"></button>';
     li.querySelector(".nm span").textContent=u.name;
-    const pips=li.querySelector(".pips");for(let i=0;i<u.max&&i<12;i++)pips.appendChild(document.createElement("i"));
+    const pips=li.querySelector(".pips");for(let i=0;isFinite(u.max)&&i<u.max;i++)pips.appendChild(document.createElement("i"));
     const btn=li.querySelector("button");btn.addEventListener("click",()=>buy(u));
     rows[u.k]={li,pips,nm:li.querySelector(".nm span"),ds:li.querySelector(".ds"),btn};ul.appendChild(li);
   }
 }
 function refresh(){
   $("purse").textContent="✦ "+fmt(state.star);
-  $("day").textContent="Day "+fmt(state.days);
-  $("stageName").textContent=stageOf(state);
-  $("rate").innerHTML="<em>+"+fmt(yieldOf(state))+" ✦</em> per turn · one turn takes "+PERIOD+" s";
+  $("day").textContent=(state.worlds.length>1?W.name+" · ":"")+"Day "+fmt(state.days);
+  $("stageName").textContent=stageOf(W);
+  $("rate").innerHTML="<em>+"+fmt(yieldOf(state))+" ✦</em> per turn"+(state.worlds.length>1?" from all worlds":"")+" · one turn takes "+PERIOD+" s";
+  {const can=canFound(),f=$("colony");f.hidden=!can;if(can){const c=colonyCost(),b=$("found");b.disabled=state.star<c;b.textContent="Launch colony · ✦ "+fmt(c)}}
   $("log").textContent=state.log;
   for(const u of UPS){
-    const r=rows[u.k],l=state.lv[u.k],lock=u.req?u.req(state):null;
+    const r=rows[u.k],l=lvl(u),lock=u.req?u.req(W):null;
     r.li.classList.toggle("locked",!!lock);
     if(u.k==="mult")r.nm.textContent=l?"Multiplier ×"+fmt(Math.pow(2,l)):"Multiplier";
     r.pips.querySelectorAll("i").forEach((p,i)=>p.classList.toggle("on",i<l));
     if(lock){r.ds.textContent=lock;r.btn.hidden=true}
     else if(l>=u.max){r.ds.textContent="Complete";r.btn.hidden=false;r.btn.disabled=true;r.btn.textContent="Done"}
-    else{const c=cost(u,l);r.ds.textContent=u.ds(l);r.btn.hidden=false;r.btn.disabled=state.star<c;r.btn.textContent="✦ "+fmt(c);
+    else{const c=costOf(u,l);r.ds.textContent=u.ds(l);r.btn.hidden=false;r.btn.disabled=state.star<c;r.btn.textContent="✦ "+fmt(c);
       r.btn.setAttribute("aria-label","Upgrade "+u.name+" for "+fmt(c)+" starlight")}
   }
 }
 function buy(u){
-  const l=state.lv[u.k];if(l>=u.max||(u.req&&u.req(state)))return;
-  const c=cost(u,l);if(state.star<c)return;
-  state.star-=c;state.lv[u.k]=l+1;
+  const l=lvl(u);if(l>=u.max||(u.req&&u.req(W)))return;
+  const c=costOf(u,l);if(state.star<c)return;
+  state.star-=c;if(u.k==="mult")state.mult=l+1;else W.lv[u.k]=l+1;
   state.log="Day "+fmt(state.days)+". "+u.log[Math.min(l,u.log.length-1)];
   buildTex();refresh();save();
 }
+/* several worlds: chips to travel between them, and the form that founds a new one */
+let palPick=1;
+function buildChips(){
+  const el=$("worlds");el.textContent="";el.hidden=state.worlds.length<2;
+  state.worlds.forEach((w,i)=>{
+    const b=document.createElement("button");b.type="button";b.className="chip";b.id="world-"+i;b.setAttribute("aria-pressed",i===state.cur?"true":"false");
+    b.style.setProperty("--c",(PALS[w.pal]||PALS[0]).dot);b.appendChild(document.createElement("i"));b.appendChild(document.createTextNode(w.name));
+    b.addEventListener("click",()=>{if(i!==state.cur)voyage(i)});el.appendChild(b);
+  });
+  const pe=$("pals");pe.textContent="";
+  PALS.forEach((q,i)=>{
+    const b=document.createElement("button");b.type="button";b.className="chip";b.id="pal-"+i;b.setAttribute("aria-pressed",i===palPick?"true":"false");
+    b.style.setProperty("--c",q.dot);b.appendChild(document.createElement("i"));b.appendChild(document.createTextNode(q.n));
+    b.addEventListener("click",()=>{palPick=i;pe.querySelectorAll("button").forEach((x,j)=>x.setAttribute("aria-pressed",j===i?"true":"false"))});pe.appendChild(b);
+  });
+}
+function voyage(i){
+  state.cur=i;W=state.worlds[i];
+  const ld=$("loader");$("loadMsg").textContent="Travelling to "+W.name;ld.hidden=false;ld.classList.remove("done");
+  setTimeout(()=>{
+    setZoom(1);z=1;camLat=0;sunAng=0;rk.length=0;zr.length=0;
+    genWorld(W.seed);makeSky(W.seed);buildTex();makeMinis();buildChips();refresh();save();
+    setTimeout(()=>{ld.classList.add("done");setTimeout(()=>{ld.hidden=true},700)},900);
+  },60);
+}
+$("colony").addEventListener("submit",e=>{
+  e.preventDefault();
+  const c=colonyCost();if(!canFound()||state.star<c)return;
+  state.star-=c;
+  const name=($("cname").value.trim()||NAMES[state.worlds.length-1]||"New world").slice(0,18);
+  state.worlds.push(newWorld(name,palPick));$("cname").value="";
+  state.log="The first ships touch down on "+name+". It is bare rock, for now.";
+  voyage(state.worlds.length-1);
+});
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
-function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.lv)return d}catch(e){}return null}
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&(d.lv||d.worlds))return d}catch(e){}return null}
 function adopt(d){
   const f=fresh();
-  if(d&&d.lv){
-    Object.assign(f,d);f.lv=Object.assign(fresh().lv,d.lv);
-    if(f.lv.spin){for(let i=0;i<f.lv.spin;i++)f.star+=Math.round(8*Math.pow(2.1,i))} /* refund the retired Spin upgrade */
-    delete f.lv.spin;
+  if(d&&Array.isArray(d.worlds)&&d.worlds.length){
+    Object.assign(f,d);
+    f.worlds=d.worlds.map(w=>{const n=newWorld(String(w.name||"World").slice(0,18),PALS[w.pal]?w.pal:0);n.seed=w.seed|0;n.rot=+w.rot||0;Object.assign(n.lv,w.lv);return n});
+    f.cur=clamp(f.cur|0,0,f.worlds.length-1);f.mult=f.mult|0;
+  }else if(d&&d.lv){ /* saves from before there were several worlds */
+    f.star=+d.star||0;f.days=d.days|0;f.log=d.log||f.log;f.mult=d.lv.mult|0;
+    const w=f.worlds[0];w.seed=d.seed|0;w.rot=+d.rot||0;
+    for(const k in w.lv)w.lv[k]=d.lv[k]|0;
+    for(let i=0;i<(d.lv.spin|0);i++)f.star+=Math.round(8*Math.pow(2.1,i)); /* refund the retired Spin upgrade */
   }
-  state=f;
+  state=f;W=state.worlds[state.cur];
 }
 
 const reduced=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -696,7 +850,7 @@ function setZoom(v){
 }
 function look(dx,dy){
   const k=1/(R*z),dxr=dx*COST+dy*SINT,dyr=-dx*SINT+dy*COST;
-  state.rot+=dxr*k;camLat=clamp(camLat+dyr*k,-1.2,1.2);
+  W.rot+=dxr*k;camLat=clamp(camLat+dyr*k,-1.2,1.2);
 }
 $("zoom").addEventListener("input",e=>setZoom(parseFloat(e.target.value)));
 $("zin").addEventListener("click",()=>setZoom(zT<1.5?2.5:zT*1.5));
@@ -734,7 +888,7 @@ cv.addEventListener("keydown",e=>{
 let armed=0;
 $("reset").addEventListener("click",()=>{
   const b=$("reset"),now=Date.now();
-  if(now-armed<4000){armed=0;b.textContent="Start over with a new world";state=fresh();boost=0;acc=0;setZoom(1);genWorld(state.seed);makeSky(state.seed);buildTex();refresh();save()}
+  if(now-armed<4000){armed=0;b.textContent="Start over with a new world";state=fresh();W=state.worlds[0];boost=0;acc=0;setZoom(1);genWorld(W.seed);makeSky(W.seed);buildTex();makeMinis();buildChips();refresh();save()}
   else{armed=now;b.textContent="Tap again to wipe this world";setTimeout(()=>{if(armed&&Date.now()-armed>=3900){armed=0;b.textContent="Start over with a new world"}},4000)}
 });
 
@@ -749,7 +903,7 @@ function frame(ms){
   latEff=camLat*clamp((z-1)/.8,0,1);
   let rate=w*Math.pow(z,-1.3);
   if(z>1.2)rate=Math.min(rate,70/(R*z)/clamp((z-1.2)/1.5,.05,1));
-  state.rot=(state.rot+rate*dt)%TAU;acc+=w*dt;
+  W.rot=(W.rot+rate*dt)%TAU;acc+=w*dt;
   if(z>1.02)sunAng=(sunAng+Math.min(w-rate,TAU/30)*dt)%TAU;
   else{if(sunAng>Math.PI)sunAng-=TAU;sunAng*=Math.exp(-dt*4)}
   state.star+=yieldOf(state)*w*dt/TAU; /* starlight trickles in as the world turns */
@@ -764,10 +918,10 @@ function frame(ms){
   requestAnimationFrame(frame);
 }
 function start(data){
-  adopt(data&&data.lv?data:load());
+  adopt(data&&(data.lv||data.worlds)?data:load());
   const t0=performance.now();
   setTimeout(()=>{ /* let the loading screen paint before the heavy world build */
-    genWorld(state.seed);makeSky(state.seed);buildTex();buildRows();refresh();setZoom(1);
+    genWorld(W.seed);makeSky(W.seed);buildTex();makeMinis();buildRows();buildChips();refresh();setZoom(1);
     requestAnimationFrame(frame);
     const ld=$("loader");
     setTimeout(()=>{ld.classList.add("done");setTimeout(()=>{ld.hidden=true},700)},Math.max(0,1400-(performance.now()-t0)));
