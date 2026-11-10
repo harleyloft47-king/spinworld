@@ -836,7 +836,7 @@ function adopt(d){
 const reduced=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
 let lastFloat=0;
 function floatText(txt,now){
-  if(reduced||now-lastFloat<350)return;lastFloat=now;
+  if(reduced||now-lastFloat<150)return;lastFloat=now;
   const s=document.createElement("span");s.textContent=txt;s.style.left=(42+Math.random()*16)+"%";
   s.addEventListener("animationend",()=>s.remove());$("floats").appendChild(s);
 }
@@ -893,7 +893,7 @@ $("reset").addEventListener("click",()=>{
 });
 
 /* ---------- loop ---------- */
-let last=0,uiT=0,saveT=0,fc=0,drawMs=8,slowN=0;
+let last=0,uiT=0,saveT=0,fc=0,drawMs=8,slowN=0,qacc=0;
 function frame(ms){
   const t=ms/1000,dt=Math.min(.1,t-last||0);last=t;fc++;
   const w=TAU/PERIOD*(1+boost);
@@ -906,8 +906,12 @@ function frame(ms){
   W.rot=(W.rot+rate*dt)%TAU;acc+=w*dt;
   if(z>1.02)sunAng=(sunAng+Math.min(w-rate,TAU/30)*dt)%TAU;
   else{if(sunAng>Math.PI)sunAng-=TAU;sunAng*=Math.exp(-dt*4)}
-  state.star+=yieldOf(state)*w*dt/TAU; /* starlight trickles in as the world turns */
-  if(acc>=TAU){const n=Math.floor(acc/TAU);acc-=n*TAU;state.days+=n;floatText("Day "+fmt(state.days)+" · +"+fmt(n*yieldOf(state))+" ✦",ms);uiT=0}
+  qacc+=w*dt;
+  if(qacc>=TAU/4){ /* pay a quarter of a turn's starlight, and show exactly the amount that was just added */
+    const n=Math.floor(qacc/(TAU/4)),pay=Math.round(n*yieldOf(state)/4);qacc-=n*TAU/4;
+    state.star+=pay;floatText("+"+fmt(pay)+" ✦",ms);uiT=0;
+  }
+  if(acc>=TAU){const n=Math.floor(acc/TAU);acc-=n*TAU;state.days+=n;uiT=0}
   if(!(drawMs>22&&(fc&1))){ /* on slow devices draw every other frame */
     const t0=performance.now();draw(t);drawMs+=(performance.now()-t0-drawMs)*.1;
     /* slower phones: render the globe at a lower resolution to stay smooth */
