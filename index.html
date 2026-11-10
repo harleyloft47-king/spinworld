@@ -85,6 +85,21 @@ h2{font-family:var(--font-display);font-weight:600;font-size:1rem;margin:0 0 4px
 .loader i::after{content:"";display:block;width:40%;height:100%;background:var(--star);border-radius:3px;animation:slide 1.1s ease-in-out infinite alternate}
 @keyframes slide{from{transform:translateX(-20%)}to{transform:translateX(170%)}}
 @media (prefers-reduced-motion:reduce){.loader i::after{animation:none;width:100%}}
+.shopbtn{margin-top:4px;min-height:32px;padding:4px 12px;border-radius:999px;border:1px solid var(--star);background:transparent;color:var(--star);font-family:var(--font-num);font-size:12px;letter-spacing:.04em;cursor:pointer;-webkit-appearance:none;appearance:none}
+.shopbtn:focus-visible,.shophead button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.shop{position:fixed;top:0;left:0;right:0;bottom:0;z-index:15;background:rgba(5,6,14,.8);display:flex;align-items:flex-end;justify-content:center;padding:env(safe-area-inset-top,0px) 0 0}
+.sheet{width:min(100%,460px);max-height:100%;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.shophead{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.shophead h2{font-size:1.25rem;margin:0}
+.shophead button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--void);color:var(--ink);font-size:22px;line-height:1;cursor:pointer;padding:0}
+.shop p{margin:8px 0;color:var(--dim);font-size:13px}
+.packs{list-style:none;margin:10px 0;padding:0;border-top:1px solid var(--line)}
+.pack{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.pack .meta{flex:1;min-width:0}
+.pack .amt{font-family:var(--font-num);font-size:1.05rem;color:var(--star);font-variant-numeric:tabular-nums}
+.pack .tag{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;border:1px solid var(--life);color:var(--life);font-family:var(--font-num);font-size:11px}
+.pack a.buy{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+@media (min-width:600px){.shop{align-items:center}.sheet{border-radius:18px;border-bottom:1px solid var(--line)}}
 .worlds{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;-webkit-appearance:none;appearance:none}
 .chip i{width:10px;height:10px;border-radius:50%;background:var(--c)}
@@ -111,6 +126,15 @@ h2{font-family:var(--font-display);font-weight:600;font-size:1rem;margin:0 0 4px
   <i></i>
 </div>
 
+<div class="shop" id="shop" hidden role="dialog" aria-modal="true" aria-labelledby="shopT">
+  <div class="sheet">
+    <div class="shophead"><h2 id="shopT">Buy Starlight</h2><button type="button" id="shopClose" aria-label="Close the store">×</button></div>
+    <p id="shopNote"></p>
+    <ul class="packs" id="packs"></ul>
+    <p class="fine">Starlight is added to the game saved in this browser on this device. It has no cash value and can't be moved to another device.</p>
+  </div>
+</div>
+
 <div class="wrap">
   <header class="bar">
     <div>
@@ -120,6 +144,7 @@ h2{font-family:var(--font-display);font-weight:600;font-size:1rem;margin:0 0 4px
     <div class="purse">
       <div class="eyebrow">Starlight</div>
       <b id="purse">✦ 0</b>
+      <button class="shopbtn" id="shopOpen" type="button">Buy Starlight</button>
     </div>
   </header>
 
@@ -816,6 +841,52 @@ $("colony").addEventListener("submit",e=>{
   state.log="The first ships touch down on "+name+". It is bare rock, for now.";
   voyage(state.worlds.length-1);
 });
+/* ---------- store ----------
+   Each pack needs a checkout link from a payment provider (for example a Stripe Payment Link).
+   Paste the link for a pack into PAY_LINKS and its button goes live. Set the link's "after payment" redirect to
+   this page with ?bought=<pack id>&session_id={CHECKOUT_SESSION_ID} so the Starlight is added on return. */
+const PACKS=[
+ {id:"spark",n:"Spark",amt:25000,usd:"0.99"},
+ {id:"glimmer",n:"Glimmer",amt:150000,usd:"4.99"},
+ {id:"beam",n:"Beam",amt:350000,usd:"9.99"},
+ {id:"flare",n:"Flare",amt:800000,usd:"19.99"},
+ {id:"nova",n:"Nova",amt:2500000,usd:"49.99"},
+ {id:"supernova",n:"Supernova",amt:5000000,usd:"79.99"}
+];
+const PAY_LINKS={spark:"",glimmer:"",beam:"",flare:"",nova:"",supernova:""};
+function buildShop(){
+  const ul=$("packs"),base=PACKS[0].amt/parseFloat(PACKS[0].usd);let open=false;ul.textContent="";
+  for(const k of PACKS){
+    const li=document.createElement("li");li.className="pack";
+    const bonus=Math.round((k.amt/parseFloat(k.usd)/base-1)*100),link=PAY_LINKS[k.id];
+    li.innerHTML='<span class="sw" style="--c:var(--star)"></span><div class="meta"><div class="nm"></div><div class="amt"></div></div>';
+    li.querySelector(".nm").textContent=k.n;
+    li.querySelector(".amt").textContent="✦ "+k.amt.toLocaleString("en-US");
+    if(bonus>0){const t=document.createElement("span");t.className="tag";t.textContent="+"+bonus+"% extra";li.querySelector(".amt").appendChild(t)}
+    let b;
+    if(link){b=document.createElement("a");b.href=link;open=true}else{b=document.createElement("button");b.type="button";b.disabled=true}
+    b.className="buy";b.id="pack-"+k.id;b.textContent="$"+k.usd;b.setAttribute("aria-label","Buy "+k.n+", "+k.amt.toLocaleString("en-US")+" Starlight, for $"+k.usd);
+    li.appendChild(b);ul.appendChild(li);
+  }
+  $("shopNote").textContent=open?"Prices are in US dollars. Checkout opens on a secure payment page.":"The store isn't open yet, so nothing can be bought. These are the packs and prices that are coming.";
+}
+function shopShow(on){$("shop").hidden=!on;if(on)$("shopClose").focus();else $("shopOpen").focus()}
+$("shopOpen").addEventListener("click",()=>shopShow(true));
+$("shopClose").addEventListener("click",()=>shopShow(false));
+$("shop").addEventListener("click",e=>{if(e.target===$("shop"))shopShow(false)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("shop").hidden)shopShow(false)});
+function claimPurchase(){ /* back from checkout: add the pack once per checkout session */
+  let q;try{q=new URLSearchParams(location.search)}catch(e){return}
+  const k=PACKS.find(x=>x.id===q.get("bought")),sid=q.get("session_id");
+  if(!k||!sid||!PAY_LINKS[k.id])return;
+  let done=[];try{done=JSON.parse(localStorage.getItem("spinworld-claims"))||[]}catch(e){}
+  if(!done.includes(sid)){
+    state.star+=k.amt;state.log="Thank you. ✦ "+k.amt.toLocaleString("en-US")+" Starlight added.";
+    done.push(sid);try{localStorage.setItem("spinworld-claims",JSON.stringify(done.slice(-200)))}catch(e){}
+    save();
+  }
+  try{history.replaceState(null,"",location.pathname)}catch(e){}
+}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&(d.lv||d.worlds))return d}catch(e){}return null}
 function adopt(d){
@@ -923,6 +994,7 @@ function frame(ms){
 }
 function start(data){
   adopt(data&&(data.lv||data.worlds)?data:load());
+  claimPurchase();buildShop();
   const t0=performance.now();
   setTimeout(()=>{ /* let the loading screen paint before the heavy world build */
     genWorld(W.seed);makeSky(W.seed);buildTex();makeMinis();buildRows();buildChips();refresh();setZoom(1);
