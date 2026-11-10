@@ -7,10 +7,12 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Figtree:wght@400;600&family=DM+Mono:wght@400;500&display=swap">
 <meta name="theme-color" content="#0a0c18">
+<meta name="color-scheme" content="dark">
+<meta name="format-detection" content="telephone=no">
 <meta name="description" content="Spin a cratered rock and upgrade it into a living world.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Spinworld">
@@ -29,8 +31,10 @@
   --font-num:'DM Mono',ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
-body{background:var(--void);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--void)}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button,input{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{overscroll-behavior-y:contain;background:var(--void);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;top:0;left:0;right:0;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--void)}
 .wrap{max-width:980px;margin:0 auto;padding-block:0 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--void);display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding-block:12px 10px;border-bottom:1px solid var(--line)}
 .eyebrow{font-family:var(--font-num);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
@@ -40,16 +44,16 @@ h1{font-family:var(--font-display);font-weight:800;font-size:1.6rem;line-height:
 .main{display:grid;gap:20px;margin-top:8px}
 .stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
 .globe{position:relative;width:min(100%,400px);aspect-ratio:1;max-width:100%}
-canvas{display:block;width:100%;height:100%;cursor:pointer;touch-action:pan-y;user-select:none;-webkit-user-select:none;border-radius:50%;-webkit-tap-highlight-color:transparent;outline:none}
+canvas{display:block;width:100%;height:100%;cursor:pointer;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;border-radius:50%;-webkit-tap-highlight-color:transparent;outline:none}
 canvas.zoomed{touch-action:none;cursor:grab;box-shadow:0 0 0 1px var(--line)}
 canvas:focus-visible{outline:2px solid var(--star);outline-offset:-6px}
-.floats{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.floats{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden}
 .floats span{position:absolute;left:50%;top:22%;font-family:var(--font-num);color:var(--star);font-size:1.05rem;animation:rise 1.2s ease-out forwards;white-space:nowrap;text-shadow:0 1px 4px var(--void)}
 @keyframes rise{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-46px)}}
 .zoom{display:flex;align-items:center;gap:10px;width:min(100%,340px);margin-top:4px}
-.zoom button{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:var(--font-num);font-size:20px;line-height:1;cursor:pointer}
+.zoom button{flex:none;width:44px;height:44px;padding:0;-webkit-appearance:none;appearance:none;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:var(--font-num);font-size:20px;line-height:1;cursor:pointer}
 .zoom button:focus-visible,.zoom input:focus-visible{outline:2px solid var(--star);outline-offset:2px}
-.zoom input{flex:1;min-width:0;accent-color:var(--star)}
+.zoom input{flex:1;min-width:0;height:44px;margin:0;accent-color:var(--star)}
 .zoom span{flex:none;width:4.5ch;text-align:right;font-family:var(--font-num);font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums}
 .rate{font-family:var(--font-num);font-size:13px;color:var(--dim);text-align:center;font-variant-numeric:tabular-nums}
 .rate em{font-style:normal;color:var(--star)}
@@ -67,12 +71,12 @@ h2{font-family:var(--font-display);font-weight:600;font-size:1rem;margin:0 0 4px
 .ds{color:var(--dim);font-size:13px}
 .up.locked .sw{background:transparent;box-shadow:none;border:1px dashed var(--dim)}
 .up.locked .nm{color:var(--dim)}
-.buy{flex:none;min-width:86px;font-family:var(--font-num);font-size:14px;font-variant-numeric:tabular-nums;padding:10px 12px;border-radius:999px;border:1px solid var(--star);background:var(--star);color:#1c1503;cursor:pointer}
+.buy{flex:none;min-width:86px;min-height:44px;-webkit-appearance:none;appearance:none;font-family:var(--font-num);font-size:14px;font-variant-numeric:tabular-nums;padding:10px 12px;border-radius:999px;border:1px solid var(--star);background:var(--star);color:#1c1503;cursor:pointer}
 .buy:disabled{background:transparent;color:var(--dim);border-color:var(--line);cursor:default}
 .buy:focus-visible,.reset:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .buy:not(:disabled):active{transform:scale(.96)}
-.reset{margin-top:18px;background:none;border:none;color:var(--dim);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:8px 0}
-.loader{position:fixed;inset:0;z-index:20;background:var(--void);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;transition:opacity .6s ease}
+.reset{min-height:44px;margin-top:18px;background:none;border:none;color:var(--dim);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:8px 0}
+.loader{position:fixed;top:0;left:0;right:0;bottom:0;z-index:20;background:var(--void);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;transition:opacity .6s ease}
 .loader.done{opacity:0;pointer-events:none}
 .loader img{width:min(62vw,280px);height:auto;aspect-ratio:1;border-radius:22%;box-shadow:0 0 60px rgba(255,207,107,.25)}
 .loader strong{font-family:var(--font-display);font-weight:800;font-size:1.9rem;line-height:1}
@@ -374,12 +378,13 @@ function makeSky(seed){
 }
 
 /* ---------- sphere renderer ---------- */
-const S=384,R=190,VB=386,off=document.createElement("canvas");off.width=off.height=S;
-const octx=off.getContext("2d"),img=octx.createImageData(S,S);
-const pIdx=new Int32Array(S*S),pU=new Float32Array(S*S),pV=new Float32Array(S*S),pX=new Float32Array(S*S),pY=new Float32Array(S*S),pZ=new Float32Array(S*S),pF=new Float32Array(S*S),pA=new Uint8Array(S*S);
+const SMAX=384,R=190,VB=386,off=document.createElement("canvas");let S=SMAX;off.width=off.height=S;
+const octx=off.getContext("2d");let img=octx.createImageData(S,S);
+const pIdx=new Int32Array(SMAX*SMAX),pU=new Float32Array(SMAX*SMAX),pV=new Float32Array(SMAX*SMAX),pX=new Float32Array(SMAX*SMAX),pY=new Float32Array(SMAX*SMAX),pZ=new Float32Array(SMAX*SMAX),pF=new Float32Array(SMAX*SMAX),pA=new Uint8Array(SMAX*SMAX);
 let pn=0,projZ=-1,projA=-9,V=VB;
 const LH=Math.hypot(L0[0],L0[2]),LPH=Math.atan2(L0[0],L0[2]);
 let Lx=L0[0],Ly=L0[1],Lz=L0[2],Hx=0,Hy=0,Hz=1;
+function setRes(n){S=n;off.width=off.height=n;img=octx.createImageData(n,n);projZ=-1}
 function rebuildProj(zm,a){
   projZ=zm;projA=a;V=Math.min(720,VB*zm);
   const sc=V/(S*R*zm),c=S/2,ca=Math.cos(a),sa=Math.sin(a);let n=0;
@@ -696,6 +701,7 @@ function look(dx,dy){
 $("zoom").addEventListener("input",e=>setZoom(parseFloat(e.target.value)));
 $("zin").addEventListener("click",()=>setZoom(zT<1.5?2.5:zT*1.5));
 $("zout").addEventListener("click",()=>setZoom(zT/1.5<1.6?1:zT/1.5));
+cv.addEventListener("gesturestart",e=>e.preventDefault()); /* iOS: keep a pinch on the planet from zooming the page */
 cv.addEventListener("wheel",e=>{e.preventDefault();setZoom(zT*Math.exp(-e.deltaY*.0015))},{passive:false});
 const ptrs=new Map();let pinchD=0,moved=false,multi=false,travel=0;
 function pdist(){const a=[...ptrs.values()];return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}
@@ -733,7 +739,7 @@ $("reset").addEventListener("click",()=>{
 });
 
 /* ---------- loop ---------- */
-let last=0,uiT=0,saveT=0,fc=0,drawMs=8;
+let last=0,uiT=0,saveT=0,fc=0,drawMs=8,slowN=0;
 function frame(ms){
   const t=ms/1000,dt=Math.min(.1,t-last||0);last=t;fc++;
   const w=TAU/PERIOD*(1+boost);
@@ -750,6 +756,8 @@ function frame(ms){
   if(acc>=TAU){const n=Math.floor(acc/TAU);acc-=n*TAU;state.days+=n;floatText("Day "+fmt(state.days)+" · +"+fmt(n*yieldOf(state))+" ✦",ms);uiT=0}
   if(!(drawMs>22&&(fc&1))){ /* on slow devices draw every other frame */
     const t0=performance.now();draw(t);drawMs+=(performance.now()-t0-drawMs)*.1;
+    /* slower phones: render the globe at a lower resolution to stay smooth */
+    if(drawMs>20){if(++slowN>40&&S>224){setRes(S===SMAX?288:224);slowN=0;drawMs=12}}else slowN=0;
   }
   if(ms-uiT>200){uiT=ms;refresh()}
   if(ms-saveT>5000){saveT=ms;save()}
@@ -771,5 +779,6 @@ if(hot&&hot.snapshot)hot.snapshot(()=>state);
 if(hot&&hot.ready)hot.ready(start);else start((hot&&hot.data)||{});
 })();
 </script>
+<script>if("serviceWorker" in navigator&&location.protocol==="https:")window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});</script>
 </body>
 </html>
