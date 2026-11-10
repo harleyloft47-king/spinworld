@@ -854,6 +854,10 @@ const PACKS=[
  {id:"supernova",n:"Supernova",amt:5000000,usd:"79.99"}
 ];
 const PAY_LINKS={spark:"",glimmer:"",beam:"",flare:"",nova:"",supernova:""};
+/* pretend mode: prices add Starlight for free. On in the private copy, and on the shared link for any device that has opened it once with #pretend */
+let pretend=!/github\.io$/.test(location.hostname);
+try{if(location.hash==="#pretend")localStorage.setItem("spinworld-pretend","1");else if(location.hash==="#pretend-off")localStorage.removeItem("spinworld-pretend");
+  if(/github\.io$/.test(location.hostname))pretend=localStorage.getItem("spinworld-pretend")==="1"}catch(e){}
 function buildShop(){
   const ul=$("packs"),base=PACKS[0].amt/parseFloat(PACKS[0].usd);let open=false;ul.textContent="";
   for(const k of PACKS){
@@ -864,11 +868,16 @@ function buildShop(){
     li.querySelector(".amt").textContent="✦ "+k.amt.toLocaleString("en-US");
     if(bonus>0){const t=document.createElement("span");t.className="tag";t.textContent="+"+bonus+"% extra";li.querySelector(".amt").appendChild(t)}
     let b;
-    if(link){b=document.createElement("a");b.href=link;open=true}else{b=document.createElement("button");b.type="button";b.disabled=true}
+    if(link&&!pretend){b=document.createElement("a");b.href=link;open=true}
+    else{b=document.createElement("button");b.type="button";b.disabled=!pretend;
+      if(pretend)b.addEventListener("click",()=>{
+        state.star+=k.amt;state.log="Pretend purchase: ✦ "+k.amt.toLocaleString("en-US")+" Starlight added.";save();refresh();
+        $("shopNote").textContent="Added ✦ "+k.amt.toLocaleString("en-US")+" ("+k.n+"). No money was charged.";
+      })}
     b.className="buy";b.id="pack-"+k.id;b.textContent="$"+k.usd;b.setAttribute("aria-label","Buy "+k.n+", "+k.amt.toLocaleString("en-US")+" Starlight, for $"+k.usd);
     li.appendChild(b);ul.appendChild(li);
   }
-  $("shopNote").textContent=open?"Prices are in US dollars. Checkout opens on a secure payment page.":"The store isn't open yet, so nothing can be bought. These are the packs and prices that are coming.";
+  $("shopNote").textContent=pretend?"Pretend mode: tapping a price adds that Starlight for free. No money is charged.":open?"Prices are in US dollars. Checkout opens on a secure payment page.":"The store isn't open yet, so nothing can be bought. These are the packs and prices that are coming.";
 }
 function shopShow(on){$("shop").hidden=!on;if(on)$("shopClose").focus();else $("shopOpen").focus()}
 $("shopOpen").addEventListener("click",()=>shopShow(true));
